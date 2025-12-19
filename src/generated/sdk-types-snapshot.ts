@@ -8,7 +8,7 @@
  *   1. cd packages/sdk-types
  *   2. pnpm sync-opensource
  * 
- * Generated: 2025-12-19T16:51:32.895Z
+ * Generated: 2025-12-19T16:54:48.049Z
  */
 
 /* eslint-disable */
