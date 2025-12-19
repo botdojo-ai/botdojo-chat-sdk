@@ -1,6 +1,6 @@
 {
   "name": "@botdojo/chat-sdk",
-  "version": "0.0.26",
+  "version": "0.0.28",
   "description": "React component for embedding BotDojo chat with model context support",
   "type": "module",
   "main": "lib/index.js",
@@ -58,11 +58,11 @@
   },
   "homepage": "https://botdojo.com",
   "dependencies": {
-    "mcp-app-view": "^0.1.5"
+    "mcp-app-view": "0.1.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
-    "botdojo-rpc": "workspace:*",
+    "botdojo-rpc": "0.1.1",
     "react": "^18.2.0",
     "tsup": "^7.2.0",
     "typescript": "^5.0.0"

@@ -28,8 +28,10 @@ export default defineConfig({
   ],
   
   // Bundle internal BotDojo packages that aren't published to npm
+  // Also bundle mcp-app-view so it's included in the chat-sdk bundle
   noExternal: [
     'botdojo-rpc',
+    'mcp-app-view',
   ],
   
   // Exclude Node.js built-in modules from bundling - make them external/empty
