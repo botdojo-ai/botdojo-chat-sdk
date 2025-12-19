@@ -62,7 +62,6 @@
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
-    "@botdojo/sdk-types": "workspace:*",
     "botdojo-rpc": "workspace:*",
     "react": "^18.2.0",
     "tsup": "^7.2.0",

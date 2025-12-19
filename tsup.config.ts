@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   format: ['esm'], // ESM only for browser compatibility
   dts: {
-    resolve: ['botdojo-rpc', '@botdojo/sdk-types'], // Inline types from bundled packages
+    resolve: ['botdojo-rpc'], // Inline types from bundled packages
   },
   sourcemap: true,
   clean: true,
@@ -30,7 +30,6 @@ export default defineConfig({
   // Bundle internal BotDojo packages that aren't published to npm
   noExternal: [
     'botdojo-rpc',
-    '@botdojo/sdk-types',
   ],
   
   // Exclude Node.js built-in modules from bundling - make them external/empty
