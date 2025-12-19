@@ -8,9 +8,9 @@ export default defineConfig({
     'src/mcp-app-view/host.ts',
   ],
   format: ['esm'], // ESM only for browser compatibility
-  dts: {
-    resolve: ['botdojo-rpc'], // Inline types from bundled packages
-  },
+  // DTS disabled - snapshot file has declaration order issues
+  // TODO: Fix generator to output types in correct dependency order
+  dts: false,
   sourcemap: true,
   clean: true,
   platform: 'browser', // Browser-only build

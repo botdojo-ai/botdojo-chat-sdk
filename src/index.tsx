@@ -132,9 +132,7 @@ export type {
     CitationData,
     ToolExecutionResult,
     ToolMetadata,
-    // MCP Apps types (SEP-1865)
-    McpUiHostContext,
-} from '@botdojo/sdk-types';
+} from './generated/sdk-types-snapshot';
 
 // Re-export tool helper functions for building tool responses
 export {
@@ -150,7 +148,7 @@ export {
     citations,
     // MIME type constants
     MIME_TYPES,
-} from '@botdojo/sdk-types';
+} from './generated/sdk-types-snapshot';
 
 /**
  * @deprecated Legacy canvas components for inline canvas cards.

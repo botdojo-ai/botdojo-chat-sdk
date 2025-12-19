@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BotDojoConnector } from '../connector';
-import type { ModelContext } from '@botdojo/sdk-types';
-import { extractToolHandlers } from '@botdojo/sdk-types';
+import type { ModelContext } from '../generated/sdk-types-snapshot';
+import { extractToolHandlers } from '../generated/sdk-types-snapshot';
 
 /**
  * Chat status during flow execution

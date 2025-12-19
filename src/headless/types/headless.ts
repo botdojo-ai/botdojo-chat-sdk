@@ -6,7 +6,7 @@
  * types for the React state management layer.
  */
 
-import { FlowRequestStep, Core_TokenUpdate, Core_FlowCanvas, ModelContext } from '@botdojo/sdk-types';
+import { FlowRequestStep, Core_TokenUpdate, Core_FlowCanvas, ModelContext } from '../../generated/sdk-types-snapshot';
 import { BotDojoConnector } from '../../connector';
 import { RPCConnection } from 'botdojo-rpc';
 import type { McpAppData } from '../context/McpAppHostContext';

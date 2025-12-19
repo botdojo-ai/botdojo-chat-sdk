@@ -11,7 +11,7 @@ import {
   HeadlessAction, 
   ChatMessage 
 } from '../types/headless';
-import { FlowRequestStep } from '@botdojo/sdk-types';
+import { FlowRequestStep } from '../../generated/sdk-types-snapshot';
 
 export const initialState: HeadlessChatState = {
   isReady: false,

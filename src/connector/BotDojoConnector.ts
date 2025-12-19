@@ -1,5 +1,5 @@
-import type { ModelContext, FlowRequestOptions, FlowRequestBody, FlowResponse, BackendModelContext, ToolExecutionResult } from "@botdojo/sdk-types";
-import { mapToolResponseToBackend, translateModelContextToBackend, isDynamicResource } from "@botdojo/sdk-types";
+import type { ModelContext, FlowRequestOptions, FlowRequestBody, FlowResponse, BackendModelContext, ToolExecutionResult } from "../generated/sdk-types-snapshot";
+import { mapToolResponseToBackend, translateModelContextToBackend, isDynamicResource } from "../generated/sdk-types-snapshot";
 import { RPCConnection, RPCMessage, ChannelListener, PostMessageBridge, PostMessageRPCClient, ConectionOptions } from "botdojo-rpc";
 
 

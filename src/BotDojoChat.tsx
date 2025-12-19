@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 // Import connector and utilities
 import { BotDojoConnector } from './connector';
 import { resolveUiCsp, extractUiCspFromResource } from './utils';
-import type { ModelContext } from '@botdojo/sdk-types';
+import type { ModelContext } from './generated/sdk-types-snapshot';
 
 // CORS config type (previously from sdk-canvas)
 export interface ToolCallCorsConfig {
   allowedToolCallOrigins?: string[];
 }
-import { extractToolHandlers } from '@botdojo/sdk-types';
+import { extractToolHandlers } from './generated/sdk-types-snapshot';
 import { PostMessageBridge, createIframeBridge, RPCMessage, RPCMessageError, PostMessageRPCClient, RPCConnection, ConectionOptions } from 'botdojo-rpc';
 
 /**

@@ -30,7 +30,7 @@ import {
 // Import RPC and Connector dependencies
 import { BotDojoConnector } from '../../connector';
 import { extractUiCspFromResource, resolveUiCsp, buildMcpProxyUrl } from '../../utils';
-import { translateModelContextToBackend, ToolExecutionContext, FlowRequestStep } from '@botdojo/sdk-types';
+import { translateModelContextToBackend, ToolExecutionContext, FlowRequestStep } from '../../generated/sdk-types-snapshot';
 
 /**
  * Extended step type that includes raw server properties not in the SDK type
