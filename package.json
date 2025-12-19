@@ -1,0 +1,76 @@
+{
+  "name": "@botdojo/chat-sdk",
+  "version": "0.0.28",
+  "description": "React component for embedding BotDojo chat with model context support",
+  "type": "module",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./mcp-app-view": {
+      "types": "./lib/mcp-app-view/index.d.ts",
+      "import": "./lib/mcp-app-view/index.js",
+      "default": "./lib/mcp-app-view/index.js"
+    },
+    "./mcp-app-view/react": {
+      "types": "./lib/mcp-app-view/react.d.ts",
+      "import": "./lib/mcp-app-view/react.js",
+      "default": "./lib/mcp-app-view/react.js"
+    },
+    "./mcp-app-view/host": {
+      "types": "./lib/mcp-app-view/host.d.ts",
+      "import": "./lib/mcp-app-view/host.js",
+      "default": "./lib/mcp-app-view/host.js"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf lib",
+    "prepublishOnly": "pnpm clean && pnpm build",
+    "publish:npm": "npm publish --access public"
+  },
+  "keywords": [
+    "botdojo",
+    "chat",
+    "embed",
+    "react",
+    "ai",
+    "agent",
+    "chatbot",
+    "llm"
+  ],
+  "author": "BotDojo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/botdojo-ai/botdojo-chat-sdk.git"
+  },
+  "homepage": "https://botdojo.com",
+  "dependencies": {
+    "mcp-app-view": "0.1.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "botdojo-rpc": "0.1.1",
+    "react": "^18.2.0",
+    "tsup": "^7.2.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0 || ^18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
