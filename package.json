@@ -58,7 +58,7 @@
   },
   "homepage": "https://botdojo.com",
   "dependencies": {
-    "mcp-app-view": "0.1.5"
+    "mcp-app-view": "0.1.6"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
