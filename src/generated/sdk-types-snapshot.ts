@@ -8,7 +8,7 @@
  *   1. cd packages/sdk-types
  *   2. pnpm sync-opensource
  * 
- * Generated: 2025-12-19T14:36:38.879Z
+ * Generated: 2025-12-19T16:51:32.895Z
  */
 
 /* eslint-disable */
@@ -1149,7 +1149,7 @@ export function validateTypes(): void {
  * for validation purposes. It does NOT create a package dependency.
  * 
  * To update: pnpm sync-backend-types
- * Generated: 2025-12-19T13:26:26.406Z
+ * Generated: 2025-12-19T16:13:04.002Z
  */
 
 /* eslint-disable */
