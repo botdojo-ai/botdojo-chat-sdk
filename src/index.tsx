@@ -132,6 +132,20 @@ export type {
     CitationData,
     ToolExecutionResult,
     ToolMetadata,
+    // SDK tool helper types (needed for DTS bundling)
+    JSONSchema,
+    ZodSchema,
+    SDKToolDefinition,
+    ToolsRecord,
+    ToolHandler,
+    ModelContextDefinition,
+    ResourceContentObject,
+    ResourceContentResult,
+    // Backend translation types
+    BackendModelContext,
+    BackendToolDef,
+    BackendPromptDef,
+    BackendResourceDef,
 } from './generated/sdk-types-snapshot';
 
 // Re-export tool helper functions for building tool responses

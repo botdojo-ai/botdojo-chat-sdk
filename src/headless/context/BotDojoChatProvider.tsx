@@ -44,8 +44,8 @@ import {
   RPCConnection, 
   RPCMessage,
   PostMessageBridge,
+  generateUUID,
 } from 'botdojo-rpc';
-import { v4 as uuidv4 } from 'uuid';
 
 export const BotDojoChatContext = createContext<BotDojoChatContextType | null>(null);
 
@@ -67,6 +67,8 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
     onConnectorError,
     // Debug mode for MCP App rendering
     debug = false,
+    // Cache key for MCP proxy URLs
+    cacheKey,
     // MCP App handlers (SEP-1865)
     onOpenLink,
     onToolCall,
@@ -79,7 +81,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   
   // Generate a unique external UI channel ID for Socket.IO communication
-  const externalUIChannelIdRef = useRef<string>(uuidv4());
+  const externalUIChannelIdRef = useRef<string>(generateUUID());
   
   // Connector and RPC refs/state (kept for backwards compatibility)
   const connectorRef = useRef<BotDojoConnector | null>(null);
@@ -161,6 +163,11 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
     modelContextRef.current = modelContext;
   }, [modelContext]);
 
+  // Debug logging helper - only logs when debug prop is true
+  const debugLog = useCallback((...args: any[]) => {
+    if (debug) console.log('[BotDojoChatProvider]', ...args);
+  }, [debug]);
+
   // Build headless iframe URL
   // HeadlessEmbed handles both HTTP streaming (flow request) and Socket.IO (external UI channel)
   const iframeUrl = useMemo(() => {
@@ -194,7 +201,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
 
   // Handle headless iframe load
   const handleIframeLoad = useCallback(() => {
-    console.log('[BotDojoChatProvider] Headless iframe loaded');
+    debugLog(' Headless iframe loaded');
     setIsIframeReady(true);
   }, []);
   
@@ -230,7 +237,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
     // Send first context (we can extend to support multiple later)
     const ctx = contexts[0];
     if (ctx) {
-      console.log('[BotDojoChatProvider] Sending model context to HeadlessEmbed:', ctx.name);
+      debugLog(' Sending model context to HeadlessEmbed:', ctx.name);
       iframeRef.current.contentWindow.postMessage({
         type: 'set_model_context',
         modelContext: serializeModelContext(ctx),
@@ -524,9 +531,31 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
           const canvasUrl = step.canvas.canvasData?.url;
           let proxyUrl: string | undefined;
           if (canvasUrl?.startsWith('ui://')) {
-            const flowId = (step as any).flowId || (step as any).flow_id || (msg as any).messageId || 'unknown';
+            const flowId = cacheKey || appId;
+            
+            // Check if tool has botdojo/no-cache in _meta
+            let noCache = false;
+            const toolName = step.stepToolName;
+            debugLog(' Checking no-cache for tool:', toolName, 'modelContextRef:', !!modelContextRef.current);
+            if (toolName && modelContextRef.current) {
+              const contexts = Array.isArray(modelContextRef.current) ? modelContextRef.current : [modelContextRef.current];
+              for (const ctx of contexts) {
+                const tools = ctx.tools;
+                debugLog(' Context tools:', Array.isArray(tools) ? tools.length : 'not array');
+                if (Array.isArray(tools)) {
+                  const tool = tools.find((t: any) => t.name === toolName);
+                  debugLog(' Found tool:', tool?.name, '_meta:', tool?._meta);
+                  if (tool?._meta?.['botdojo/no-cache']) {
+                    noCache = true;
+                    break;
+                  }
+                }
+              }
+            }
+            debugLog(' noCache result:', noCache);
+            
             try {
-              proxyUrl = buildMcpProxyUrl({ flowId: String(flowId), resource: canvasUrl });
+              proxyUrl = buildMcpProxyUrl({ flowId: String(flowId), resource: canvasUrl, noCache });
             } catch (err) {
               console.warn('[BotDojoChatProvider] Failed to build proxy URL for hydration:', err);
             }
@@ -574,7 +603,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
 
   // Get resource from model context
   const getResource = useCallback(async (uri: string, params?: any, onlyMetadata?: boolean): Promise<any> => {
-    console.log('[BotDojoChatProvider] getResource called for URI:', uri);
+    debugLog(' getResource called for URI:', uri);
     const ctx = modelContextRef.current;
     if (!ctx) {
       console.error('[BotDojoChatProvider] getResource: No model context available');
@@ -582,19 +611,19 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
     }
     
     const contexts = Array.isArray(ctx) ? ctx : [ctx];
-    console.log('[BotDojoChatProvider] getResource: Searching', contexts.length, 'context(s)');
+    debugLog(' getResource: Searching', contexts.length, 'context(s)');
     
     for (const context of contexts) {
       if (context.resources) {
-        console.log('[BotDojoChatProvider] getResource: Context has', context.resources.length, 'resources');
+        debugLog(' getResource: Context has', context.resources.length, 'resources');
         for (const resource of context.resources) {
           const resourceUri = 'uri' in resource ? resource.uri : 'no-uri';
-          console.log('[BotDojoChatProvider] getResource: Checking resource URI:', resourceUri, '=== requested URI:', uri, '?', resourceUri === uri);
+          debugLog(' getResource: Checking resource URI:', resourceUri, '=== requested URI:', uri, '?', resourceUri === uri);
           // Check for exact URI match
           if ('uri' in resource && resource.uri === uri && resource.getContent) {
-            console.log('[BotDojoChatProvider] getResource: MATCH FOUND! Calling getContent()');
+            debugLog(' getResource: MATCH FOUND! Calling getContent()');
             const content = await resource.getContent();
-            console.log('[BotDojoChatProvider] getResource: getContent returned:', typeof content, typeof content === 'object' && content && 'uri' in content ? content.uri : '(no uri)');
+            debugLog(' getResource: getContent returned:', typeof content, typeof content === 'object' && content && 'uri' in content ? content.uri : '(no uri)');
             return {
               uri,
               mimeType: resource.mimeType,
@@ -611,12 +640,12 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
 
   // Register an MCP App iframe and set up its bridge
   const registerMcpApp = useCallback((appId: string, iframeWindow: Window) => {
-    console.log('[BotDojoChatProvider] Registering MCP App iframe:', appId);
+    debugLog(' Registering MCP App iframe:', appId);
     
     // If this appId was already registered (e.g., React Strict Mode double mount),
     // tear down the old bridge and replace it with the new iframe window.
     if (appBridgesRef.current.has(appId)) {
-      console.log('[BotDojoChatProvider] MCP App already registered, refreshing bridge:', appId);
+      debugLog(' MCP App already registered, refreshing bridge:', appId);
       const existingBridge = appBridgesRef.current.get(appId);
       existingBridge?.stop();
       appBridgesRef.current.delete(appId);
@@ -633,7 +662,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
       debug: true,
       role: 'parent',
       onMessage: async (msg: RPCMessage) => {
-        console.log('[BotDojoChatProvider] Message from MCP App:', appId, msg.functionName);
+        debugLog(' Message from MCP App:', appId, msg.functionName);
         
         // Handle tool calls from app
         if (msg.functionName.startsWith('tool_')) {
@@ -642,10 +671,10 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
           // Check if tool exists on parent connector
           if (connectorRef.current) {
             // TODO: Execute tool via connector
-            console.log('[BotDojoChatProvider] Tool call from app:', toolName, msg.data);
+            debugLog(' Tool call from app:', toolName, msg.data);
           } else {
             // Forward to server via headless embed iframe
-            console.log('[BotDojoChatProvider] Forwarding tool call to server:', toolName);
+            debugLog(' Forwarding tool call to server:', toolName);
             if (iframeRef.current?.contentWindow) {
               iframeRef.current.contentWindow.postMessage(
                 {
@@ -677,7 +706,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
     // Send any pending events
     const pending = pendingAppEventsRef.current.get(appId);
     if (pending && pending.length > 0) {
-      console.log('[BotDojoChatProvider] Sending pending events to app:', appId, pending.length);
+      debugLog(' Sending pending events to app:', appId, pending.length);
       pending.forEach(event => {
         bridge.sendMessage(RPCMessage.request(
           `parent-to-app-${appId}`,
@@ -689,12 +718,12 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
       pendingAppEventsRef.current.delete(appId);
     }
 
-    console.log('[BotDojoChatProvider] MCP App registered successfully:', appId);
+    debugLog(' MCP App registered successfully:', appId);
   }, [baseUrl]);
 
   // Unregister an MCP App iframe
   const unregisterMcpApp = useCallback((appId: string) => {
-    console.log('[BotDojoChatProvider] Unregistering MCP App iframe:', appId);
+    debugLog(' Unregistering MCP App iframe:', appId);
     
     const bridge = appBridgesRef.current.get(appId);
     if (bridge) {
@@ -716,7 +745,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
   const forwardEventToApp = useCallback((appId: string, eventName: string, data: any) => {
     const bridge = appBridgesRef.current.get(appId);
     if (bridge) {
-      console.log('[BotDojoChatProvider] Forwarding event to app:', appId, eventName);
+      debugLog(' Forwarding event to app:', appId, eventName);
       bridge.sendMessage(RPCMessage.request(
         `parent-to-app-${appId}`,
         'app',
@@ -725,7 +754,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
       ));
     } else {
       // Queue event if app not ready yet
-      console.log('[BotDojoChatProvider] Queueing event for app (not ready):', appId, eventName);
+      debugLog(' Queueing event for app (not ready):', appId, eventName);
       if (!pendingAppEventsRef.current.has(appId)) {
         pendingAppEventsRef.current.set(appId, []);
       }
@@ -760,13 +789,13 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
       return; // PostMessageBridge will handle this
     }
 
-    console.log('[BotDojoChatProvider] Received event:', data.type, data);
+    debugLog(' Received event:', data.type, data);
 
     // Map iframe events to reducer actions
     switch (data.type) {
       // === HeadlessEmbed Socket.IO Events ===
       case 'socket_connected':
-        console.log('[BotDojoChatProvider] HeadlessEmbed Socket.IO connected');
+        debugLog(' HeadlessEmbed Socket.IO connected');
         setIsSocketConnected(true);
         // Send model context now that Socket.IO is connected
         sendModelContextToHeadless();
@@ -774,20 +803,20 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
         
       case 'request_model_context':
         // HeadlessEmbed is requesting model context for Socket.IO registration
-        console.log('[BotDojoChatProvider] HeadlessEmbed requesting model context');
+        debugLog(' HeadlessEmbed requesting model context');
         sendModelContextToHeadless();
         break;
         
       case 'get_model_contexts':
         // HeadlessEmbed is requesting all model contexts
-        console.log('[BotDojoChatProvider] HeadlessEmbed requesting all model contexts');
+        debugLog(' HeadlessEmbed requesting all model contexts');
         sendModelContextToHeadless();
         break;
         
       case 'tool_call':
         // HeadlessEmbed received a tool call from the agent via Socket.IO
         // data.appId: if present, notifications go to that specific MCP App only
-        console.log('[BotDojoChatProvider] Tool call from HeadlessEmbed:', data.toolName, 'appId:', data.appId || data.canvasId || 'none');
+        debugLog(' Tool call from HeadlessEmbed:', data.toolName, 'appId:', data.appId || data.canvasId || 'none');
         (async () => {
           try {
             const result = await executeToolCall(data.toolName, data.arguments, data.appId || data.canvasId);
@@ -811,7 +840,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
         
       case 'get_resource':
         // HeadlessEmbed is requesting a resource
-        console.log('[BotDojoChatProvider] Resource request from HeadlessEmbed:', data.uri);
+        debugLog(' Resource request from HeadlessEmbed:', data.uri);
         (async () => {
           try {
             const resource = await getResource(data.uri, data.params, data.onlyMetadata);
@@ -832,7 +861,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
         break;
         
       case 'model_context_registered':
-        console.log('[BotDojoChatProvider] ✅ Model context registered:', data.name);
+        debugLog(' ✅ Model context registered:', data.name);
         setIsModelContextRegistered(true);
         onConnectorInit?.(null); // Notify that "connector" is ready (deprecated, headless mode doesn't use connector)
         break;
@@ -897,7 +926,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
         
         // Debug: Log MCP App info in step
         if (rawStep?.canvas) {
-          console.log('[BotDojoChatProvider] Step has MCP App:', rawStep.canvas.canvasId, rawStep.canvas.canvasType, JSON.stringify(rawStep.canvas.canvasData, null, 2));
+          debugLog(' Step has MCP App:', rawStep.canvas.canvasId, rawStep.canvas.canvasType, JSON.stringify(rawStep.canvas.canvasData, null, 2));
           
           // Register this app as the active app for its tool
           // This allows executeToolCall to route notifications to the correct app
@@ -921,10 +950,10 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
           // Check if canvas URL is a custom ui:// URI that needs to be resolved
           const canvasUrl = rawStep?.canvas?.canvasData?.url;
           if (canvasUrl && canvasUrl.startsWith('ui://') && !rawStep?.canvas?.canvasData?.html) {
-            console.log('[BotDojoChatProvider] Resolving ui:// resource:', canvasUrl);
+            debugLog(' Resolving ui:// resource:', canvasUrl);
             try {
               const resource = await getResource(canvasUrl);
-              console.log('[BotDojoChatProvider] Resource result:', resource ? 'got content' : 'no content');
+              debugLog(' Resource result:', resource ? 'got content' : 'no content');
               // getResource returns { text: content } for string content
               let htmlContent = resource?.text || resource?.content;
               if (htmlContent) {
@@ -932,7 +961,7 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
                 const cspMeta = extractUiCspFromResource(resource);
                 if (cspMeta) {
                   const resolvedCsp = resolveUiCsp(cspMeta);
-                  console.log('[BotDojoChatProvider] Injecting CSP into HTML:', resolvedCsp.csp.substring(0, 100) + '...');
+                  debugLog(' Injecting CSP into HTML:', resolvedCsp.csp.substring(0, 100) + '...');
                   // Inject CSP meta tag into HTML head
                   const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${resolvedCsp.csp.replace(/"/g, '&quot;')}">`;
                   if (/<head[^>]*>/i.test(htmlContent)) {
@@ -954,23 +983,43 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
                     },
                   },
                 };
-                console.log('[BotDojoChatProvider] ✅ Resolved ui:// resource to HTML (' + htmlContent.length + ' chars)');
+                debugLog(' ✅ Resolved ui:// resource to HTML (' + htmlContent.length + ' chars)');
                 
                 // Always build proxy URL for ui:// resources (per MCP spec, blob URLs not supported)
                 let proxyUrl: string | undefined;
                 const proxyOrigin = process.env.NEXT_PUBLIC_MCP_HTML_PROXY_ORIGIN || undefined;
-                const flowIdForProxy =
-                  (rawStep as any)?.flowId ||
-                  (rawStep as any)?.flow_id ||
-                  (rawStep as any)?.messageId ||
-                  'unknown';
+                const canvasId = rawStep.canvas?.canvasId;
+                const flowIdForProxy = cacheKey || canvasId || `unknown-${generateUUID()}`;
+                
+                // Check if tool has botdojo/no-cache in _meta to disable proxy caching
+                let noCache = false;
+                const toolNameForMeta = rawStep.stepToolName || rawStep.stepLabel;
+                debugLog(' handleStepUpdate - Checking no-cache for tool:', toolNameForMeta, 'modelContextRef:', !!modelContextRef.current);
+                if (toolNameForMeta && modelContextRef.current) {
+                  const contexts = Array.isArray(modelContextRef.current) ? modelContextRef.current : [modelContextRef.current];
+                  for (const ctx of contexts) {
+                    const tools = ctx.tools;
+                    debugLog(' handleStepUpdate - Context tools:', Array.isArray(tools) ? tools.length : 'not array');
+                    if (Array.isArray(tools)) {
+                      const tool = tools.find((t: any) => t.name === toolNameForMeta);
+                      debugLog(' handleStepUpdate - Found tool:', tool?.name, '_meta:', JSON.stringify(tool?._meta));
+                      if (tool?._meta?.['botdojo/no-cache']) {
+                        noCache = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+                debugLog(' handleStepUpdate - noCache result:', noCache);
+                
                 try {
                   proxyUrl = buildMcpProxyUrl({
                     flowId: String(flowIdForProxy),
                     resource: canvasUrl,
                     ...(proxyOrigin ? { origin: proxyOrigin } : {}),
+                    noCache,
                   });
-                  console.log('[BotDojoChatProvider] Using MCP proxy URL:', proxyUrl);
+                  debugLog(' Using MCP proxy URL:', proxyUrl, noCache ? '(no-cache)' : '');
                 } catch (err) {
                   console.warn('[BotDojoChatProvider] Failed to build MCP proxy URL', err);
                 }

@@ -8,9 +8,7 @@ export default defineConfig({
     'src/mcp-app-view/host.ts',
   ],
   format: ['esm'], // ESM only for browser compatibility
-  // DTS disabled - snapshot file has declaration order issues
-  // TODO: Fix generator to output types in correct dependency order
-  dts: false,
+  dts: true,
   sourcemap: true,
   clean: true,
   platform: 'browser', // Browser-only build

@@ -169,6 +169,12 @@ export interface BotDojoChatProviderProps {
    */
   debug?: boolean;
   
+  /**
+   * Optional cache key for MCP proxy URL caching.
+   * If not provided, uses the MCP App ID.
+   */
+  cacheKey?: string;
+  
   // MCP App event callbacks (matching BotDojoChat API)
   /**
    * Called when an MCP App requests to open a link (ui/open-link)

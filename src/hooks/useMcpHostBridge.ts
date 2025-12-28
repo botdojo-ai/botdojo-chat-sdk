@@ -366,9 +366,6 @@ export function useMcpHostBridge(options: UseMcpHostBridgeOptions): UseMcpHostBr
   // === Message Handling ===
 
   const handleMessage = useCallback((event: MessageEvent) => {
-    if (debug) {
-      console.log(`[useMcpHostBridge:${appId}] raw message`, { origin: event.origin, data: event.data });
-    }
     // Accept any JSON-RPC message (some browsers give a different Window proxy)
     if (!event.data || event.data.jsonrpc !== '2.0') return;
     const data = event.data;
@@ -401,16 +398,83 @@ export function useMcpHostBridge(options: UseMcpHostBridgeOptions): UseMcpHostBr
 
       case 'ui/notifications/sandbox-ready':
       case 'ui/notifications/sandbox-proxy-ready': {
-        // Proxy is ready - if we have HTML, send it via sandbox-resource-ready
-        log('Proxy reported sandbox-ready');
+        // Proxy is ready to receive messages
+        const loadedFromCache = params?.loadedFromCache;
         const resource = params?.resource;
-        if (resource && html) {
-          log('Sending sandbox-resource-ready with inline HTML for:', resource);
+        const flowId = params?.flowId;
+        log('Proxy reported sandbox-ready, loadedFromCache:', loadedFromCache, 'resource:', resource);
+        
+        // If proxy loaded from cache, it already has HTML - no need to send
+        if (loadedFromCache) {
+          log('Proxy loaded from cache, skipping sandbox-resource-ready');
+          break;
+        }
+        
+        // Proxy doesn't have cached content - send HTML proactively
+        if (!resource) {
+          log('No resource in sandbox-ready, cannot send HTML');
+          break;
+        }
+        
+        const cacheKey = `${flowId || 'unknown'}|${resource}`;
+        
+        // Check our local cache first
+        if (sandboxResourceCacheRef.current.has(cacheKey)) {
+          const cached = sandboxResourceCacheRef.current.get(cacheKey)!;
+          log('Using cached sandbox resource for:', resource);
           sendNotification('ui/notifications/sandbox-resource-ready', {
             resource,
+            flowId,
+            ...cached,
+          });
+          break;
+        }
+        
+        // If we have inline HTML already, use it
+        if (html) {
+          log('Using inline HTML for sandbox-ready:', resource);
+          const entry = {
             html,
             sandbox: 'allow-scripts allow-same-origin',
+          };
+          sandboxResourceCacheRef.current.set(cacheKey, entry);
+          sendNotification('ui/notifications/sandbox-resource-ready', {
+            resource,
+            flowId,
+            ...entry,
           });
+          break;
+        }
+        
+        // Otherwise, call the callback to resolve the resource
+        if (onSandboxResourceRequest) {
+          (async () => {
+            try {
+              log('Calling onSandboxResourceRequest for sandbox-ready:', resource);
+              const resolved = await onSandboxResourceRequest({ resource, flowId });
+              const payload = typeof resolved === 'string' ? { html: resolved } : resolved;
+              if (payload?.html) {
+                log('Got HTML from onSandboxResourceRequest for:', resource, 'length:', payload.html.length);
+                const entry = {
+                  html: payload.html,
+                  sandbox: payload.sandbox || 'allow-scripts allow-same-origin',
+                  csp: payload.csp,
+                };
+                sandboxResourceCacheRef.current.set(cacheKey, entry);
+                sendNotification('ui/notifications/sandbox-resource-ready', {
+                  resource,
+                  flowId,
+                  ...entry,
+                });
+              } else {
+                log('onSandboxResourceRequest returned no HTML for:', resource);
+              }
+            } catch (err) {
+              console.warn('[useMcpHostBridge] Failed to resolve sandbox resource on sandbox-ready:', err);
+            }
+          })();
+        } else {
+          log('No onSandboxResourceRequest handler and no inline HTML for:', resource);
         }
         break;
       }

@@ -229,6 +229,12 @@ export interface BotDojoChatProps {
      */
     welcomeMessage?: string;
     
+    /**
+     * Optional cache key for MCP proxy URL caching.
+     * If not provided, uses the MCP App ID.
+     */
+    cacheKey?: string;
+    
     // Focus behavior
     /**
      * Whether to auto-focus the chat input on load
@@ -458,6 +464,7 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
 
     const [isOpen, setIsOpen] = useState(mode === 'inline');
     const [isLoading, setIsLoading] = useState(false);
+
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [connector, setConnector] = useState<BotDojoConnector | null>(null);
     const [connectorError, setConnectorError] = useState<Error | null>(null);
@@ -1285,6 +1292,7 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
                         if (msg.functionName === 'chat_ready') {
                             console.log('[BotDojoChat] Chat is ready for flow requests');
                             chatReadyRef.current = true;
+
                             // Fire onReady if not already fired by early listener fallback
                             if (!chatReadyFiredRef.current) {
                                 chatReadyFiredRef.current = true;
@@ -1746,6 +1754,7 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
                     chatReadyRef.current = true;
                     chatReadyFiredRef.current = true;
                     rpcReadyRef.current = true;
+
                     const handlers = eventHandlersRef.current;
                     if (handlers.onReady) {
                         try { handlers.onReady(); } catch (e) { console.error('[BotDojoChat] Error in onReady:', e); }
@@ -1935,6 +1944,7 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
         iframeLoadedRef.current = true;
         chatReadyRef.current = false; // Reset ready flag, wait for new ready signal
         chatReadyFiredRef.current = false; // Reset fired flag for new iframe session
+
         setIsLoading(false);
         onLoad?.();
     }, [onLoad]);
@@ -2224,13 +2234,15 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
         );
     };
 
+    
+
     // Render iframe
     const renderIframe = () => {
         // Don't render iframe until apiKey is available (prevents loading with key=null)
         if (!iframeApiKey) {
             return null;
         }
-        
+
         // For popup/side-panel modes, don't create iframe until chat is opened (unless it was already loaded once)
         if ((mode === 'chat-popup' || mode === 'side-panel' || mode === 'side-push') && !isOpen && !iframeLoaded) {
             return null;
@@ -2252,6 +2264,7 @@ export const BotDojoChat: React.FC<BotDojoChatProps> = ({
                     onLoad={handleIframeLoad}
                     title="BotDojo Chat"
                 />
+
                 {renderResizeHandle()}
             </div>
         );

@@ -8,6 +8,11 @@ export type McpProxyUrlOptions = {
   flowId: string;
   resource: string;
   origin?: string;
+  /**
+   * If true, adds noCache=true query param to skip proxy caching.
+   * Use during development when MCP App content changes frequently.
+   */
+  noCache?: boolean;
 };
 
 // Buffer is available in Node builds; in browsers btoa is used instead.
@@ -70,13 +75,17 @@ function toBase64Url(value: string): string {
 
 /**
  * Build the MCP HTML proxy URL served by the sdk-mcp-app-html-proxy app.
- * Format: /{flowId}/?url=<encodeURIComponent(resource)>
+ * Format: /{flowId}/?url=<encodeURIComponent(resource)>[&noCache=true]
  */
 export function buildMcpProxyUrl(options: McpProxyUrlOptions): string {
   const origin = options.origin || 'https://mcp-app-proxy.botdojo.com';
   const flowId = encodeURIComponent(options.flowId || 'unknown');
   const encodedResource = encodeURIComponent(options.resource || '');
-  return `${origin}/${flowId}/?url=${encodedResource}`;
+  let url = `${origin}/${flowId}/?url=${encodedResource}`;
+  if (options.noCache) {
+    url += '&noCache=true';
+  }
+  return url;
 }
 
 /**
