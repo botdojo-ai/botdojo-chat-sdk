@@ -370,8 +370,9 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
   
   // Execute a tool call from model context
   // targetAppId: if provided, notifications go to that specific MCP App only
+  // stepId: if provided, used for dynamic appId lookup at notification time (handles concurrent calls)
   // If not provided, we look up the active app for this tool from step_update registrations
-  const executeToolCall = useCallback(async (toolName: string, args: any, targetAppId?: string): Promise<any> => {
+  const executeToolCall = useCallback(async (toolName: string, args: any, targetAppId?: string, stepId?: string): Promise<any> => {
     const ctx = modelContextRef.current;
     if (!ctx) {
       throw new Error('No model context available');
@@ -384,28 +385,38 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
         const toolsArray = Array.isArray(context.tools) ? context.tools : Object.values(context.tools);
         const tool = toolsArray.find((t: any) => t.name === toolName);
         if (tool && typeof tool.execute === 'function') {
-          // Determine target MCP App:
-          // 1. Use explicitly provided targetAppId
-          // 2. Or look up the active app for this tool (registered from step_update)
-          // 3. Or fallback to broadcast (last resort)
-          let resolvedAppId = targetAppId;
-          if (!resolvedAppId) {
-            // Look up by full tool name first
-            resolvedAppId = activeAppByToolRef.current.get(toolName);
-            // Also try with context prefix (e.g., "headless_mcp_demo_show_remote_url_app")
-            if (!resolvedAppId && context.name) {
-              const prefixedToolName = `${context.name}_${toolName}`;
-              resolvedAppId = activeAppByToolRef.current.get(prefixedToolName);
+          // Helper to resolve appId at notification time (not at start of execution)
+          // This is critical for concurrent same-tool calls - stepId→appId mapping may be populated
+          // by step_update AFTER tool execution starts but BEFORE notifications are sent
+          const resolveAppIdDynamic = (): string | undefined => {
+            // 1. Explicit appId always wins
+            if (targetAppId) return targetAppId;
+            // 2. stepId lookup (most reliable for concurrent calls)
+            if (stepId) {
+              const fromStepId = stepIdToAppIdRef.current.get(stepId);
+              if (fromStepId) return fromStepId;
             }
-          }
+            // 3. Tool name lookup (legacy, may be wrong for concurrent calls)
+            let fromToolName = activeAppByToolRef.current.get(toolName);
+            if (!fromToolName && context.name) {
+              const prefixedToolName = `${context.name}_${toolName}`;
+              fromToolName = activeAppByToolRef.current.get(prefixedToolName);
+            }
+            return fromToolName;
+          };
           
-          console.log(`[BotDojoChatProvider] Executing tool "${toolName}" for app: ${resolvedAppId || 'ALL (broadcast)'}`);
+          const initialAppId = resolveAppIdDynamic();
+          console.log(`[BotDojoChatProvider] Executing tool "${toolName}" for app: ${initialAppId || 'PENDING'}, stepId: ${stepId || 'none'}`);
           
           // Cache the tool arguments for hydration during step_update
           // Key by both toolName and appId (if known) for flexible lookup
           toolArgumentsCacheRef.current.set(toolName, args);
-          if (resolvedAppId) {
-            toolArgumentsCacheRef.current.set(resolvedAppId, args);
+          if (initialAppId) {
+            toolArgumentsCacheRef.current.set(initialAppId, args);
+          }
+          // Also cache by stepId for later lookup
+          if (stepId) {
+            toolArgumentsCacheRef.current.set(stepId, args);
           }
           
           // Create execution context with notification callbacks
@@ -432,26 +443,27 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
                 stepStatus: 'processing',
               };
               
-              if (resolvedAppId) {
-                const callback = stepUpdateCallbacksRef.current.get(resolvedAppId);
+              // Dynamically resolve appId at notification time (not at start of execution)
+              // This handles cases where step_update with canvasId arrives after tool execution starts
+              const currentAppId = resolveAppIdDynamic();
+              
+              if (currentAppId) {
+                const callback = stepUpdateCallbacksRef.current.get(currentAppId);
                 if (callback) {
-                  console.log(`[BotDojoChatProvider] Sending partial update via step callback to: ${resolvedAppId}`);
+                  console.log(`[BotDojoChatProvider] Sending partial update via step callback to: ${currentAppId}`);
                   callback(stepUpdate);
                 } else {
                   // Queue for replay when callback is registered
-                  console.log(`[BotDojoChatProvider] Callback not registered for ${resolvedAppId}, queueing`);
-                  if (!pendingStepUpdatesRef.current.has(resolvedAppId)) {
-                    pendingStepUpdatesRef.current.set(resolvedAppId, []);
+                  console.log(`[BotDojoChatProvider] Callback not registered for ${currentAppId}, queueing`);
+                  if (!pendingStepUpdatesRef.current.has(currentAppId)) {
+                    pendingStepUpdatesRef.current.set(currentAppId, []);
                   }
-                  pendingStepUpdatesRef.current.get(resolvedAppId)!.push(stepUpdate);
+                  pendingStepUpdatesRef.current.get(currentAppId)!.push(stepUpdate);
                 }
               } else {
-                // Broadcast to all registered callbacks
-                console.log(`[BotDojoChatProvider] Broadcasting partial update to all apps`);
-                stepUpdateCallbacksRef.current.forEach((callback, appId) => {
-                  console.log(`[BotDojoChatProvider] Sending to: ${appId}`);
-                  callback(stepUpdate);
-                });
+                // No appId resolved - don't broadcast as that causes wrong routing
+                // Instead, queue by stepId or toolName for later resolution
+                console.warn(`[BotDojoChatProvider] Cannot route partial update - no appId resolved for ${toolName}, stepId: ${stepId}`);
               }
             },
             notifyToolResult: async (data: any) => {
@@ -466,25 +478,24 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
                 stepStatus: 'complete',
               };
               
-              if (resolvedAppId) {
-                const callback = stepUpdateCallbacksRef.current.get(resolvedAppId);
+              // Dynamically resolve appId at notification time
+              const currentAppId = resolveAppIdDynamic();
+              
+              if (currentAppId) {
+                const callback = stepUpdateCallbacksRef.current.get(currentAppId);
                 if (callback) {
-                  console.log(`[BotDojoChatProvider] Sending result via step callback to: ${resolvedAppId}`);
+                  console.log(`[BotDojoChatProvider] Sending result via step callback to: ${currentAppId}`);
                   callback(stepUpdate);
                 } else {
-                  console.log(`[BotDojoChatProvider] Callback not registered for ${resolvedAppId}, queueing result`);
-                  if (!pendingStepUpdatesRef.current.has(resolvedAppId)) {
-                    pendingStepUpdatesRef.current.set(resolvedAppId, []);
+                  console.log(`[BotDojoChatProvider] Callback not registered for ${currentAppId}, queueing result`);
+                  if (!pendingStepUpdatesRef.current.has(currentAppId)) {
+                    pendingStepUpdatesRef.current.set(currentAppId, []);
                   }
-                  pendingStepUpdatesRef.current.get(resolvedAppId)!.push(stepUpdate);
+                  pendingStepUpdatesRef.current.get(currentAppId)!.push(stepUpdate);
                 }
               } else {
-                // Broadcast to all registered callbacks
-                console.log(`[BotDojoChatProvider] Broadcasting result to all apps`);
-                stepUpdateCallbacksRef.current.forEach((callback, appId) => {
-                  console.log(`[BotDojoChatProvider] Sending result to: ${appId}`);
-                  callback(stepUpdate);
-                });
+                // No appId resolved - don't broadcast as that causes wrong routing
+                console.warn(`[BotDojoChatProvider] Cannot route tool result - no appId resolved for ${toolName}, stepId: ${stepId}`);
               }
             },
           };
@@ -816,10 +827,20 @@ export function BotDojoChatProvider(props: BotDojoChatProviderProps): JSX.Elemen
       case 'tool_call':
         // HeadlessEmbed received a tool call from the agent via Socket.IO
         // data.appId: if present, notifications go to that specific MCP App only
-        debugLog(' Tool call from HeadlessEmbed:', data.toolName, 'appId:', data.appId || data.canvasId || 'none');
+        // data.stepId: correlates this tool call with its step_update (used for multi-call routing)
+        debugLog(' Tool call from HeadlessEmbed:', data.toolName, 'appId:', data.appId || data.canvasId || 'none', 'stepId:', data.stepId || 'none');
         (async () => {
           try {
-            const result = await executeToolCall(data.toolName, data.arguments, data.appId || data.canvasId);
+            // Resolve appId in order of priority:
+            // 1. Explicit appId/canvasId from server
+            // 2. stepId → appId lookup (for concurrent same-tool calls)
+            // 3. Fall back to tool name lookup (legacy, may be inaccurate)
+            let targetAppId = data.appId || data.canvasId;
+            if (!targetAppId && data.stepId) {
+              targetAppId = stepIdToAppIdRef.current.get(data.stepId);
+              debugLog(' Resolved appId from stepId:', data.stepId, '→', targetAppId);
+            }
+            const result = await executeToolCall(data.toolName, data.arguments, targetAppId, data.stepId);
             console.log(`[BotDojoChatProvider] ✅ Tool "${data.toolName}" executed successfully`);
             // Send response back to HeadlessEmbed
             iframeRef.current?.contentWindow?.postMessage({

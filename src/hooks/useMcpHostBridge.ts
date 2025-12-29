@@ -366,7 +366,24 @@ export function useMcpHostBridge(options: UseMcpHostBridgeOptions): UseMcpHostBr
   // === Message Handling ===
 
   const handleMessage = useCallback((event: MessageEvent) => {
-    // Accept any JSON-RPC message (some browsers give a different Window proxy)
+    // Only process messages from our specific iframe to prevent cross-contamination
+    // when multiple MCP Apps are rendered on the same page.
+    // STRICT filtering: only accept if source matches our iframe's contentWindow.
+    // Note: event.source can be null in edge cases (e.g., closed windows)
+    const source = event.source as Window | null;
+    const ourWindow = iframeRef.current?.contentWindow;
+    
+    // If we don't have a contentWindow yet, don't process any messages
+    // This prevents cross-contamination during the startup window
+    if (!ourWindow) {
+      return;
+    }
+    
+    // Only accept messages from our iframe
+    if (source !== ourWindow) {
+      return;
+    }
+    
     if (!event.data || event.data.jsonrpc !== '2.0') return;
     const data = event.data;
 

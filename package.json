@@ -1,6 +1,6 @@
 {
   "name": "@botdojo/chat-sdk",
-  "version": "0.0.29",
+  "version": "0.0.30",
   "description": "React component for embedding BotDojo chat with model context support",
   "type": "module",
   "main": "lib/index.js",
